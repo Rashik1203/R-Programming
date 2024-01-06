@@ -1,0 +1,105 @@
+install.packages("MASS")
+install.packages("lmtest")
+install.packages("boot") 
+install.packages("rms")  
+library(rms)   
+library(boot)             
+library(openxlsx)
+library(dplyr)
+library(lmtest)
+library(MASS)
+library(psych)
+
+rm(list = ls())
+probit <- read_excel("/Probit.xlsx")
+changedprobit<- probit %>%
+  mutate(WTP_1 = case_when(
+    WTP >= 0 & WTP <= 5000 ~ 1,
+    WTP > 5000 & WTP <= 10000 ~ 2,
+    WTP > 10000 & WTP <= 15000 ~ 3,
+    WTP > 15000 ~ 4,
+    TRUE ~ NA_integer_
+  ))
+
+
+#############################Probit Model###############################
+
+
+
+
+newprobit$WTP_new <- factor(newprobit$WTP_new)
+
+summary(model.oprobit <- polr(WTP_new ~ G+ Age+ Education+Occupation+ Income+Member+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI, 
+                      method = "probit", data= newprobit ))
+
+myprobit <- glm(WTP_new ~ G+ Age+ Education+Occupation+ Income+Member+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI, 
+                family = binomial(link= "probit"), data= newprobit )
+
+summary(myprobit)
+head(Probit)
+
+
+stargazer(myprobit, type="html", out="myprobit.html")
+
+newprobit$WTP_new<- factor(newprobit$WTP_new)
+myprobit_2 <- glm(WTP_1 ~ G+ Age+ Education+Occupation+ Income+Member+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI, 
+                family = binomial(link= "probit"), data= changedprobit )
+
+summary(myprobit_2)
+
+changedprobit$WTP_1<- factor(changedprobit$WTP_1)
+summary(model.oprobit <- polr(WTP_1~ G+ Age+ Education+Occupation+ Income+Member+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI, 
+                              method = "probit", data= changedprobit ))
+
+(ctable <- coef(summary(model.oprobit)))
+p <- pnorm(abs(ctable[,"t value"]),lower.tail = FALSE )*2
+(ctable <- cbind(ctable,"p value"=p))
+
+
+
+
+
+################WALD TEST ONLY APPLCABLE FOR LOGIT OR PROBIT NOT ON ORDERED PORBIT OR LOGIT####################
+coefs <- coef(model.oprobit)              # Extract coefficient estimates
+vcov_mat <- vcov(model.oprobit)           # Extract variance-covariance matrix
+wald_results <- waldtest(coefs, vcov_mat)
+
+######################BOOTSTRAPPING TO OBTAIN P VALUES#####################
+
+boot_model <- boot(model.oprobit, method = "boot", R = 1000)  # Run bootstrap with 1000 replications
+boot_summary <- boot.ci(boot_model, type = "bca")     # Obtain bootstrap confidence intervals
+
+# Print the bootstrap p-values
+p_values <- boot_summary$t0[, "Pr(>|t|)"]
+print(p_values)
+
+
+
+model <- polr(WTP_1~ G+ Age+ Education+Occupation+ Income+Member+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI, data = changedprobit)
+
+p_values <- summary(model)$coefficients[, "Pr(>|z|)"]
+print(p_values)
+
+
+
+
+
+
+
+
+###############################Linear Model#################################
+
+liner <- lm(WTP ~ G+ Age+ Education+Occupation+ Income+Member+MC+ TP+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI+Consent, 
+               data= Probit )
+
+
+liner_2<- lm(log(WTP) ~ G+ Age+ Education+Occupation+ Income+Member+MC+ TP+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI, 
+            data= newprobit )
+summary(liner_2)
+
+
+liner_3<- lm(WTP_log ~ G+ Age+ Education+Occupation+ Income+Member+MC+ TP+DF+Helmet+RAT+SP+Music+OS+Accident+ PRI+Consent, 
+               data= newprobit )
+
+stargazer(liner_3, type="html", out="liner_3.html")
+summary(liner_3)
